@@ -56,6 +56,7 @@ async def hello(ctx):
     await ctx.send(message)
 
 
+# TODO: add error handling
 async def get_coordinates_data(*location):
     async with aiohttp.ClientSession() as session:
         base_url = "http://api.positionstack.com/v1/forward"
@@ -69,10 +70,9 @@ async def get_coordinates_data(*location):
 
         async with session.get(base_url, params=params) as response:
             if response.status == 200:
-                json_repsonse = await response.json()
-                data = json_repsonse["data"]
+                json_response = await response.json()
+                data = json_response["data"]
                 latitude, longitude, timezone_offset_sec = data[0]["latitude"], data[0]["longitude"], data[0]["timezone_module"]["offset_sec"]
-                print(latitude, longitude, timezone_offset_sec)
             else:
                 response.raise_for_status()
     
@@ -87,6 +87,39 @@ async def get_coordinates(ctx, *location):
 
     latitude, longitude, timezone_offset_h = await get_coordinates_data(*location)
     message = f"Given location: {' '.join(location)}.\nLatitude = {latitude}, longitude = {longitude}, timezone = {timezone_offset_h} hours"
+
+    await ctx.send(message)
+
+
+# TODO: add error handling
+@bot.command(name="weather")
+async def get_weather(ctx, *location):
+    """Get the weather of the location"""
+
+    latitude, longitude, timezone_offset_h = await get_coordinates_data(*location)
+
+    async with aiohttp.ClientSession() as session:
+        base_url = "https://api.open-meteo.com/v1/forecast"
+        params = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "current_weather": "true"
+        }
+
+        async with session.get(base_url, params=params) as response:
+            if response.status == 200:
+                json_response = await response.json()
+                temperature = json_response["current_weather"]["temperature"]
+                windspeed = json_response["current_weather"]["windspeed"]
+                winddirection = json_response["current_weather"]["winddirection"]
+                time = json_response["current_weather"]["time"]
+            else:
+                response.raise_for_status()
+
+    location_string = " ".join(location)
+
+    message = f"Given location: {location_string}.\nLatitude = {latitude}, longitude = {longitude}, timezone = {timezone_offset_h} hours from UTC.\n" \
+        f"Current weather = {temperature} °C, windspeed = {windspeed} km/h, winddirection = {winddirection}, UTC time slot = {time}."
 
     await ctx.send(message)
 
