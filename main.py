@@ -3,7 +3,7 @@ from dotenv import load_dotenv, dotenv_values
 import discord
 from discord.ext import commands
 import aiohttp
-
+import os
 
 load_dotenv()
 
@@ -21,12 +21,10 @@ def set_constants_from_env_variables():
     """Method to set environment variables."""
     global DISCORD_TOKEN, GUILD, LOCATION_API_TOKEN
 
-    env_variables = dotenv_values(".env")
-    print(f"DEBUG ENV: {env_variables}")
     try:
-        DISCORD_TOKEN = env_variables["DISCORD_TOKEN"]
-        GUILD = env_variables["DISCORD_GUILD"]
-        LOCATION_API_TOKEN = env_variables["LOCATION_API_TOKEN"]
+        DISCORD_TOKEN = os.environ["DISCORD_TOKEN"]
+        GUILD = os.environ["DISCORD_GUILD"]
+        LOCATION_API_TOKEN = os.environ["LOCATION_API_TOKEN"]
     except KeyError as e:
         print(f"Please set all environment variables. Error: {e}")
 
@@ -119,7 +117,6 @@ async def get_weather_data(latitude, longitude, timezone_offset_h):
 
         async with session.get(base_url, params=params) as response:
             json_response = await response.json()
-            print(json_response)
 
             if response.status == 200:
                 temperature = json_response["current_weather"]["temperature"]
@@ -161,5 +158,4 @@ async def print_error(ctx, error):
 
 if __name__ == "__main__":
     set_constants_from_env_variables()
-    print(f"DEBUG: {DISCORD_TOKEN}")
     bot.run(DISCORD_TOKEN)
