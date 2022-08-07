@@ -4,6 +4,8 @@ import discord
 from discord.ext import commands
 import aiohttp
 import os
+import matplotlib.pyplot as plt
+
 
 load_dotenv()
 
@@ -103,26 +105,18 @@ async def get_coordinates(ctx, *location):
     await ctx.send(message)
 
 
-async def get_weather_data(latitude, longitude, timezone_offset_h):
+async def get_weather_data(latitude, longitude, timezone_offset_h, parameters):
     """Method to make ayncronous request to fetch weather data from the given coordinates."""
 
     timeout = aiohttp.ClientTimeout(total=60)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         base_url = "https://api.open-meteo.com/v1/forecast"
-        params = {
-            "latitude": latitude,
-            "longitude": longitude,
-            "current_weather": "true"
-        }
 
-        async with session.get(base_url, params=params) as response:
+        async with session.get(base_url, params=parameters) as response:
             json_response = await response.json()
 
             if response.status == 200:
-                temperature = json_response["current_weather"]["temperature"]
-                windspeed = json_response["current_weather"]["windspeed"]
-                winddirection = json_response["current_weather"]["winddirection"]
-                time = json_response["current_weather"]["time"]
+                return json_response
             else:
                 error_message = "Some Error!"
                 if 'error' in json_response:
@@ -130,15 +124,25 @@ async def get_weather_data(latitude, longitude, timezone_offset_h):
 
                 raise Exception(error_message)
 
-    return temperature, windspeed, winddirection, time
-
 
 @bot.command(name="weather")
 async def get_weather(ctx, *location):
     """Get the weather of the given location as a parameter."""
 
     latitude, longitude, timezone_offset_h = await get_coordinates_data(*location)
-    temperature, windspeed, winddirection, time = await get_weather_data(latitude, longitude, timezone_offset_h)
+
+    parameters = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "current_weather": "true"
+        }
+
+    response = await get_weather_data(latitude, longitude, timezone_offset_h, parameters)
+
+    temperature = response["current_weather"]["temperature"]
+    windspeed = response["current_weather"]["windspeed"]
+    winddirection = response["current_weather"]["winddirection"]
+    time = response["current_weather"]["time"]
 
     location_string = " ".join(location)
 
@@ -148,8 +152,31 @@ async def get_weather(ctx, *location):
     await ctx.send(message)
 
 
+@bot.command(name="forecast")
+async def get_forecast(ctx, *location):
+    """Get the forecast for the five days of the given location as a parameter."""
+
+    latitude, longitude, timezone_offset_h = await get_coordinates_data(*location)
+
+    parameters = {
+        "latitude": latitude,
+        "longitude": longitude,
+        "hourly": "temperature_2m,precipitation"
+    }
+    response = await get_weather_data(latitude, longitude, timezone_offset_h, parameters)
+
+    time = response["hourly"]["time"]
+    temperature = response["hourly"]["temperature_2m"]
+    precipitation = response["hourly"]["precipitation"]
+
+    location_string = " ".join(location)
+
+    await ctx.send("TEST")
+
+
 @get_coordinates.error
 @get_weather.error
+@get_forecast.error
 async def print_error(ctx, error):
     error_message = f"Error occurred: {error} Try again!"
     
