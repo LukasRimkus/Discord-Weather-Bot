@@ -22,7 +22,7 @@ def set_constants_from_env_variables():
     global DISCORD_TOKEN, GUILD, LOCATION_API_TOKEN
 
     env_variables = dotenv_values(".env")
-
+    print(f"DEBUG ENV: {env_variables}")
     try:
         DISCORD_TOKEN = env_variables["DISCORD_TOKEN"]
         GUILD = env_variables["DISCORD_GUILD"]
@@ -161,4 +161,5 @@ async def print_error(ctx, error):
 
 if __name__ == "__main__":
     set_constants_from_env_variables()
+    print(f"DEBUG: {DISCORD_TOKEN}")
     bot.run(DISCORD_TOKEN)
