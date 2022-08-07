@@ -3,7 +3,7 @@ from dotenv import load_dotenv, dotenv_values
 import discord
 from discord.ext import commands
 import aiohttp
-
+import os
 
 load_dotenv()
 
@@ -22,6 +22,8 @@ def set_constants_from_env_variables():
     global DISCORD_TOKEN, GUILD, LOCATION_API_TOKEN
 
     env_variables = dotenv_values(".env")
+    print(f"DEBUG USING OS: {os.environ['DISCORD_TOKEN']}")
+
     print(f"DEBUG ENV: {env_variables}")
     try:
         DISCORD_TOKEN = env_variables["DISCORD_TOKEN"]
