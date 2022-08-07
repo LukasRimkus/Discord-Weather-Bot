@@ -1,3 +1,4 @@
+from cProfile import label
 from unicodedata import name
 from dotenv import load_dotenv, dotenv_values
 import discord
@@ -165,13 +166,34 @@ async def get_forecast(ctx, *location):
     }
     response = await get_weather_data(latitude, longitude, timezone_offset_h, parameters)
 
+    # TODO: process time to start from current moment and edit the texts 
     time = response["hourly"]["time"]
     temperature = response["hourly"]["temperature_2m"]
     precipitation = response["hourly"]["precipitation"]
+    draw_forecast_graph(time, temperature, precipitation)
 
     location_string = " ".join(location)
 
     await ctx.send("TEST")
+
+
+def draw_forecast_graph(time, temperature, precipitation):
+    plt.rcParams["figure.autolayout"] = True
+    plt.rcParams["figure.figsize"] = [7.00, 3.50]
+
+    fig, ax1 = plt.subplots()
+
+    ax1.plot(time, temperature, color='red')
+    ax2 = ax1.twinx()
+
+    ax2.plot(time, precipitation, color='blue')
+
+    ax1.set_xlabel('Time (UTC)')
+    ax1.set_ylabel('Temperature (°C)')
+    ax2.set_ylabel('Precipitation (mm)')
+
+    fig.tight_layout()
+    plt.show()
 
 
 @get_coordinates.error
