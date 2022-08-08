@@ -165,33 +165,38 @@ async def get_forecast(ctx, *location):
         "hourly": "temperature_2m,precipitation"
     }
     response = await get_weather_data(latitude, longitude, timezone_offset_h, parameters)
-
+    
     # TODO: process time to start from current moment and edit the texts 
+    location_string = " ".join(location)
+
     time = response["hourly"]["time"]
     temperature = response["hourly"]["temperature_2m"]
     precipitation = response["hourly"]["precipitation"]
-    draw_forecast_graph(time, temperature, precipitation)
 
-    location_string = " ".join(location)
+    draw_forecast_graph(time, temperature, precipitation, location_string)
+
 
     await ctx.send("TEST")
 
 
-def draw_forecast_graph(time, temperature, precipitation):
+def draw_forecast_graph(time, temperature, precipitation, location):
     plt.rcParams["figure.autolayout"] = True
-    plt.rcParams["figure.figsize"] = [7.00, 3.50]
 
     fig, ax1 = plt.subplots()
 
     ax1.plot(time, temperature, color='red')
+    ax1.set_ylabel('Temperature (°C)', color='red')
+    ax1.tick_params(axis ='y', labelcolor = 'red') 
+
     ax2 = ax1.twinx()
 
     ax2.plot(time, precipitation, color='blue')
+    ax2.set_ylabel('Precipitation (mm)', color='blue')
+    ax2.tick_params(axis ='y', labelcolor = 'blue') 
 
     ax1.set_xlabel('Time (UTC)')
-    ax1.set_ylabel('Temperature (°C)')
-    ax2.set_ylabel('Precipitation (mm)')
-
+    
+    plt.title(f"Weather forecast for '{location}'")
     fig.tight_layout()
     plt.show()
 
@@ -201,7 +206,8 @@ def draw_forecast_graph(time, temperature, precipitation):
 @get_forecast.error
 async def print_error(ctx, error):
     error_message = f"Error occurred: {error} Try again!"
-    
+    print(error_message)
+
     await ctx.send(error_message)
 
 
