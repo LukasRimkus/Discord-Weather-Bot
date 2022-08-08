@@ -6,6 +6,7 @@ from discord.ext import commands
 import aiohttp
 import os
 import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
 
 
 load_dotenv()
@@ -106,7 +107,7 @@ async def get_coordinates(ctx, *location):
     await ctx.send(message)
 
 
-async def get_weather_data(latitude, longitude, timezone_offset_h, parameters):
+async def get_weather_data(parameters):
     """Method to make ayncronous request to fetch weather data from the given coordinates."""
 
     timeout = aiohttp.ClientTimeout(total=60)
@@ -138,7 +139,7 @@ async def get_weather(ctx, *location):
             "current_weather": "true"
         }
 
-    response = await get_weather_data(latitude, longitude, timezone_offset_h, parameters)
+    response = await get_weather_data(parameters)
 
     temperature = response["current_weather"]["temperature"]
     windspeed = response["current_weather"]["windspeed"]
@@ -164,39 +165,57 @@ async def get_forecast(ctx, *location):
         "longitude": longitude,
         "hourly": "temperature_2m,precipitation"
     }
-    response = await get_weather_data(latitude, longitude, timezone_offset_h, parameters)
-    
-    # TODO: process time to start from current moment and edit the texts 
+    response = await get_weather_data(parameters)
     location_string = " ".join(location)
 
+    hours, temperature, precipitation, time_string = process_weather_data(response, timezone_offset_h)
+    title = f"Weather forecast for '{location_string}', latitude = {latitude:.2f}, longitude = {longitude:.2f}, {time_string}"
+
+    draw_forecast_graph(hours, temperature, precipitation, title) 
+    await ctx.send(title)
+
+
+def process_weather_data(response, timezone_offset_h):
+    """The method used to return required data for plotting a weather graph."""
+
     time = response["hourly"]["time"]
-    temperature = response["hourly"]["temperature_2m"]
-    precipitation = response["hourly"]["precipitation"]
+    number_of_hours = len(time)
+    current_hour = int(datetime.utcnow().strftime("%H"))
 
-    draw_forecast_graph(time, temperature, precipitation, location_string)
+    hours = list(range(number_of_hours-current_hour))
+    temperature = response["hourly"]["temperature_2m"][current_hour:]
+    precipitation = response["hourly"]["precipitation"][current_hour:]
+
+    current_time = (datetime.utcnow() + timedelta(hours=timezone_offset_h)).strftime("%H:%M")
+    
+    # 'timezone_offset_h' can be negative, so need to check that
+    timezone = "UTC" + (f"+{timezone_offset_h}" if timezone_offset_h >= 0 else str(timezone_offset_h))
+
+    time_string = f"{current_time} {timezone}"
+    return hours, temperature, precipitation, time_string
 
 
-    await ctx.send("TEST")
-
-
-def draw_forecast_graph(time, temperature, precipitation, location):
+# TODO: save as an image ant display it on Discord
+# TODO: error handling
+# TODO: logging
+def draw_forecast_graph(hours, temperature, precipitation, title):
     plt.rcParams["figure.autolayout"] = True
 
-    fig, ax1 = plt.subplots()
+    fig, ax1 = plt.subplots(figsize=(10.0, 6.0))
 
-    ax1.plot(time, temperature, color='red')
+    ax1.plot(hours, temperature, color='red')
     ax1.set_ylabel('Temperature (°C)', color='red')
     ax1.tick_params(axis ='y', labelcolor = 'red') 
 
     ax2 = ax1.twinx()
 
-    ax2.plot(time, precipitation, color='blue')
+    ax2.plot(hours, precipitation, color='blue')
     ax2.set_ylabel('Precipitation (mm)', color='blue')
     ax2.tick_params(axis ='y', labelcolor = 'blue') 
 
-    ax1.set_xlabel('Time (UTC)')
+    ax1.set_xlabel('Hours from current time slot')
     
-    plt.title(f"Weather forecast for '{location}'")
+    plt.title(title, wrap=True)
     fig.tight_layout()
     plt.show()
 
