@@ -50,14 +50,14 @@ async def on_member_join(member):
     """Welcome message for the new member of the guild."""
     guild = member.guild
     if guild.system_channel is not None:
-        to_send = f'Welcome {member.mention} to {guild.name}! Type in `.help` to receive available commands with descriptions!'
+        to_send = f'Welcome {member.mention} to `{guild.name}`! Type in `.help` to receive available commands with descriptions!'
         await guild.system_channel.send(to_send)
 
 
 @bot.command(name="hello")
 async def hello(ctx):
     """Say hello to given person's name"""
-    message = f"Hello, {ctx.message.author}! Ask me anything about the weather!"
+    message = f"Hello, `{ctx.message.author}`! Ask me anything about the weather!"
     await ctx.send(message)
 
 
@@ -68,26 +68,24 @@ async def get_coordinates_data(*location):
 
     timeout = aiohttp.ClientTimeout(total=60)
     async with aiohttp.ClientSession(timeout=timeout) as session:
-        base_url = "http://api.positionstack.com/v1/forward"
+        base_url = "https://api.opencagedata.com/geocode/v1/json"
         location_string = " ".join(location)
         params = {
-            "access_key": LOCATION_API_TOKEN,
-            "query": location_string,
-            "limit": 1,
-            "timezone_module": 1
+            "key": LOCATION_API_TOKEN,
+            "q": location_string,
+            "limit": 1
         }
 
         async with session.get(base_url, params=params) as response:
             json_response = await response.json()
             
-            if response.status == 200 and json_response["data"]:
+            if response.status == 200 and json_response["results"]:
                 try:
-                    data = json_response["data"]
-                    latitude, longitude = data[0]["latitude"], data[0]["longitude"] 
-                    if "timezone_module" not in data[0]:
-                        timezone_offset_sec = None
-                    else:
-                        timezone_offset_sec = data[0]["timezone_module"]["offset_sec"]
+                    data = json_response["results"][0]
+                    coordinates = data['geometry']
+                    latitude, longitude = coordinates["lat"], coordinates["lng"]
+                    timezone_offset_sec = data["annotations"]["timezone"]["offset_sec"]
+                    found_location = data["formatted"]
                 except KeyError as e:
                     print(e)
                     raise Exception("There was an error with fetching the data.")
@@ -95,35 +93,26 @@ async def get_coordinates_data(*location):
                     print(e)
                     raise Exception("Unexpected error!")
             else:
-                error_message = "Some Error!"
-                if 'error' in json_response:
-                    try:
-                        error_message = f"{json_response['error']['message']}. {json_response['error']['context']['query']['message']}."
-                    except KeyError as e:
-                        print(json_response)
-                        if 'message' in json_response['error']:
-                            raise Exception(f"{json_response['error']['message']}.")
-                        raise Exception("Unexpected error!")
-                    except Exception as e:
-                        print(e)
-                        raise Exception("Unexpected error!")
+                error_message = str()
+                try:
+                    error_message = f"{json_response['status']['message']}"
+                except Exception as e:
+                    print(e)
+                    raise Exception("Unexpected error with the bad response from the API!")
 
-                elif "data" in json_response and not json_response["data"]:
-                    error_message = "There are no results given the location!"
-                
                 raise Exception(error_message)
 
-    timezone_offset_h = int(timezone_offset_sec)//3600
+    timezone_offset_h = float(timezone_offset_sec)/3600
 
-    return latitude, longitude, timezone_offset_h
+    return latitude, longitude, timezone_offset_h, found_location
 
 
 @bot.command(name="coordinates")
 async def get_coordinates(ctx, *location):
     """Get the coordinates of the given location as a parameter."""
 
-    latitude, longitude, timezone_offset_h = await get_coordinates_data(*location)
-    message = f"Given location: {' '.join(location)}.\nLatitude = {latitude}, longitude = {longitude}" + (f", timezone = {timezone_offset_h} hours" if timezone_offset_h is not None else "")
+    latitude, longitude, timezone_offset_h, found_location = await get_coordinates_data(*location)
+    message = f"Given location: `{' '.join(location)}`. The system found this location: `{found_location}`.\nLatitude = `{latitude}`, longitude = `{longitude}`, timezone = `{timezone_offset_h}` hours"
 
     await ctx.send(message)
 
@@ -152,7 +141,7 @@ async def get_weather_data(parameters):
 async def get_weather(ctx, *location):
     """Get the weather of the given location as a parameter."""
 
-    latitude, longitude, timezone_offset_h = await get_coordinates_data(*location)
+    latitude, longitude, timezone_offset_h, found_location = await get_coordinates_data(*location)
 
     parameters = {
             "latitude": latitude,
@@ -169,8 +158,8 @@ async def get_weather(ctx, *location):
 
     location_string = " ".join(location)
 
-    message = f"Given location: {location_string}.\nLatitude = {latitude}, longitude = {longitude}, timezone = {timezone_offset_h} hours from UTC.\n" \
-        f"Current weather = {temperature} °C, windspeed = {windspeed} km/h, winddirection = {winddirection}, UTC time slot = {time}."
+    message = f"Given location: `{location_string}`. The system found this location: `{found_location}`.\nLatitude = {latitude}, longitude = `{longitude}`, timezone = `{timezone_offset_h}` hours from UTC.\n" \
+        f"Current weather = `{temperature} °C`, windspeed = `{windspeed} km/h`, wind direction = `{winddirection}`, time slot in UTC = `{time}`."
 
     await ctx.send(message)
 
@@ -179,7 +168,7 @@ async def get_weather(ctx, *location):
 async def get_forecast(ctx, *location):
     """Get the forecast for the five days of the given location as a parameter."""
 
-    latitude, longitude, timezone_offset_h = await get_coordinates_data(*location)
+    latitude, longitude, timezone_offset_h, found_location = await get_coordinates_data(*location)
 
     parameters = {
         "latitude": latitude,
@@ -189,15 +178,15 @@ async def get_forecast(ctx, *location):
     response = await get_weather_data(parameters)
     location_string = " ".join(location)
 
-    hours, temperature, precipitation, time_string = process_weather_data(response, timezone_offset_h)
+    hours, temperature, precipitation, time_string = process_weather_data_for_forecast(response, timezone_offset_h)
     title = f"Weather forecast for '{location_string}', latitude = {latitude:.2f}, longitude = {longitude:.2f}, {time_string}"
 
     draw_forecast_graph(hours, temperature, precipitation, title) 
     
-    await ctx.send(f"Weather forecast for `{location_string}`!", file=discord.File('forecast.png'))
+    await ctx.send(f"Weather forecast for `{location_string}`! The system found this location: `{found_location}`.", file=discord.File('forecast.png'))
     
 
-def process_weather_data(response, timezone_offset_h):
+def process_weather_data_for_forecast(response, timezone_offset_h):
     """The method used to return required data for plotting a weather graph."""
 
     time = response["hourly"]["time"]
@@ -210,15 +199,13 @@ def process_weather_data(response, timezone_offset_h):
 
     current_time = (datetime.utcnow() + timedelta(hours=timezone_offset_h)).strftime("%H:%M")
     
-    # 'timezone_offset_h' can be negative, so need to check that
-    timezone = "UTC" + (f"+{timezone_offset_h}" if timezone_offset_h >= 0 else str(timezone_offset_h))
+    timezone = "UTC" + (f"+{timezone_offset_h:.1f}" if timezone_offset_h >= 0 else f"{timezone_offset_h:.1f}"))
 
     time_string = f"{current_time} {timezone}"
     return hours, temperature, precipitation, time_string
 
 
-# TODO: save as an image ant display it on Discord
-# TODO: error handling
+# TODO: move code into several files
 # TODO: logging
 def draw_forecast_graph(hours, temperature, precipitation, title):
     plt.rcParams["figure.autolayout"] = True
@@ -244,7 +231,7 @@ def draw_forecast_graph(hours, temperature, precipitation, title):
 
 @get_coordinates.error
 @get_weather.error
-# @get_forecast.error
+@get_forecast.error
 async def print_error(ctx, error):
     error_message = f"Error occurred: {error} Try again!"
     print(error_message)
