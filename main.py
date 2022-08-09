@@ -31,6 +31,7 @@ def set_constants_from_env_variables():
         LOCATION_API_TOKEN = os.environ["LOCATION_API_TOKEN"]
     except KeyError as e:
         print(f"Please set all environment variables. Error: {e}")
+        raise Exception("Failed to load env variables!")
 
 
 @bot.event
@@ -79,7 +80,7 @@ async def get_coordinates_data(*location):
         async with session.get(base_url, params=params) as response:
             json_response = await response.json()
             
-            if response.status == 200 and json_response["results"]:
+            if response.status == 200:
                 try:
                     data = json_response["results"][0]
                     coordinates = data['geometry']
@@ -93,14 +94,12 @@ async def get_coordinates_data(*location):
                     print(e)
                     raise Exception("Unexpected error!")
             else:
-                error_message = str()
                 try:
                     error_message = f"{json_response['status']['message']}"
+                    raise Exception(error_message)
                 except Exception as e:
                     print(e)
                     raise Exception("Unexpected error with the bad response from the API!")
-
-                raise Exception(error_message)
 
     timezone_offset_h = float(timezone_offset_sec)/3600
 
@@ -151,15 +150,19 @@ async def get_weather(ctx, *location):
 
     response = await get_weather_data(parameters)
 
-    temperature = response["current_weather"]["temperature"]
-    windspeed = response["current_weather"]["windspeed"]
-    winddirection = response["current_weather"]["winddirection"]
-    time = response["current_weather"]["time"]
+    try:
+        temperature = response["current_weather"]["temperature"]
+        windspeed = response["current_weather"]["windspeed"]
+        winddirection = response["current_weather"]["winddirection"]
+        time = response["current_weather"]["time"]
+    except KeyError as e:
+        print(e)
+        raise Exception("Error occurred in the weather API.")
 
     location_string = " ".join(location)
 
-    message = f"Given location: `{location_string}`. The system found this location: `{found_location}`.\nLatitude = {latitude}, longitude = `{longitude}`, timezone = `{timezone_offset_h}` hours from UTC.\n" \
-        f"Current weather = `{temperature} °C`, windspeed = `{windspeed} km/h`, wind direction = `{winddirection}`, time slot in UTC = `{time}`."
+    message = f"Given location: `{location_string}`. The system found this location: `{found_location}`.\nLatitude = `{latitude}`, longitude = `{longitude}`, " \
+        f"timezone = `{timezone_offset_h}` hours from UTC.\nCurrent weather = `{temperature} °C`, windspeed = `{windspeed} km/h`, wind direction = `{winddirection}`, time slot in UTC = `{time}`."
 
     await ctx.send(message)
 
@@ -193,13 +196,17 @@ def process_weather_data_for_forecast(response, timezone_offset_h):
     number_of_hours = len(time)
     current_hour = int(datetime.utcnow().strftime("%H"))
 
-    hours = list(range(number_of_hours-current_hour))
-    temperature = response["hourly"]["temperature_2m"][current_hour:]
-    precipitation = response["hourly"]["precipitation"][current_hour:]
+    try:
+        hours = list(range(number_of_hours-current_hour))
+        temperature = response["hourly"]["temperature_2m"][current_hour:]
+        precipitation = response["hourly"]["precipitation"][current_hour:]
+    except KeyError as e:
+        print(e)
+        raise Exception("Error occurred in the weather API.")
 
     current_time = (datetime.utcnow() + timedelta(hours=timezone_offset_h)).strftime("%H:%M")
     
-    timezone = "UTC" + (f"+{timezone_offset_h:.1f}" if timezone_offset_h >= 0 else f"{timezone_offset_h:.1f}"))
+    timezone = "UTC" + (f"+{timezone_offset_h:.1f}" if timezone_offset_h >= 0 else f"{timezone_offset_h:.1f}")
 
     time_string = f"{current_time} {timezone}"
     return hours, temperature, precipitation, time_string
@@ -222,11 +229,12 @@ def draw_forecast_graph(hours, temperature, precipitation, title):
     ax2.set_ylabel('Precipitation (mm)', color='blue')
     ax2.tick_params(axis ='y', labelcolor = 'blue') 
 
-    ax1.set_xlabel('Hours from current time slot')
+    ax1.set_xlabel('Hours from the current moment')
     
     plt.title(title, wrap=True)
     fig.tight_layout()
     plt.savefig("forecast.png")
+    plt.close()
 
 
 @get_coordinates.error
