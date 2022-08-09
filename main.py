@@ -1,10 +1,15 @@
+"""
+It it the main driver class which turns on the Discord bot. It contains all the bot events and commands. 
+Also, environment variables are loaded here.
+"""
+
 from dotenv import load_dotenv
 import discord
 from discord.ext import commands
 import os
-from location import get_coordinates_data
-from weather import get_weather_data
-from forecast import process_weather_data_for_forecast, draw_forecast_graph
+from Utils.location import get_coordinates_data
+from Utils.weather import get_weather_data
+from Utils.forecast import process_weather_data_for_forecast, draw_forecast_graph
 
 
 load_dotenv()
