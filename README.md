@@ -32,5 +32,9 @@ Type in `.weather <location>`, then the bot is going to give the data (e.g. temp
 ##### Command forecast
 Type in `.forecast <location>`, then the bot is going to supply you with a graph with the temperature and precipitation forecast for the following week. 
 
+### Deployment
+---------------------------------------------
+Follow this [tutorial](https://discord.com/developers/docs/tutorials/hosting-on-heroku) to deploy the application on Heroku.
+
 ---------------------------------------------
 © Lukas Rimkus 2022
